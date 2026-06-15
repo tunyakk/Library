@@ -19,6 +19,8 @@ public class LibraryDbContext : DbContext, ILibraryDbContext
     public DbSet<Reader> Readers => Set<Reader>();
     public DbSet<Loan> Loans => Set<Loan>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<Position> Positions => Set<Position>();
+    public DbSet<Employee> Employees => Set<Employee>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

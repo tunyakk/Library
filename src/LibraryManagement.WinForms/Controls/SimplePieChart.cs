@@ -2,7 +2,6 @@ using LibraryManagement.WinForms.Theme;
 
 namespace LibraryManagement.WinForms.Controls;
 
-// Минимальный pie chart - круговая диаграмма для нескольких именованных секторов.
 public class SimplePieChart : Control
 {
     public record PieSlice(string Label, double Value, Color Color);
@@ -44,7 +43,7 @@ public class SimplePieChart : Control
         if (!string.IsNullOrEmpty(_title))
         {
             titleHeight = (int)g.MeasureString(_title, titleFont).Height + 8;
-            using var titleBrush = new SolidBrush(ThemeManager.TextHeader);
+            using var titleBrush = new SolidBrush(ThemeManager.Accent);
             g.DrawString(_title, titleFont, titleBrush, new PointF(10, 6));
         }
 
@@ -59,14 +58,13 @@ public class SimplePieChart : Control
             return;
         }
 
-        // Слева - круг, справа - легенда
         int chartArea = Math.Min(Width / 2, Height - titleHeight - 20);
         int diameter = Math.Min(chartArea, 260);
         int chartX = 16;
         int chartY = titleHeight + 16;
         var pieRect = new Rectangle(chartX, chartY, diameter, diameter);
 
-        float startAngle = -90; // 12 часов
+        float startAngle = -90;
         foreach (var slice in _slices)
         {
             if (slice.Value <= 0) continue;
@@ -78,7 +76,6 @@ public class SimplePieChart : Control
             startAngle += sweep;
         }
 
-        // Легенда справа от круга
         int legendLeft = chartX + diameter + 24;
         int legendTop = titleHeight + 16;
         int rowH = 22;

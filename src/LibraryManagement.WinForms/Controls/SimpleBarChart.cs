@@ -2,8 +2,6 @@ using LibraryManagement.WinForms.Theme;
 
 namespace LibraryManagement.WinForms.Controls;
 
-// Минимальный bar chart без сторонних зависимостей. Рисуется через GDI+ Graphics.
-// Подходит для отображения top-N значений с лейблами.
 public class SimpleBarChart : Control
 {
     public record BarItem(string Label, double Value, Color? Color = null);
@@ -44,8 +42,8 @@ public class SimpleBarChart : Control
         int titleHeight = 0;
         if (!string.IsNullOrEmpty(_title))
         {
-            titleHeight = (int)g.MeasureString(_title, titleFont).Height + 8;
-            using var titleBrush = new SolidBrush(ThemeManager.TextHeader);
+            titleHeight = (int)g.MeasureString(_title, titleFont).Height + 10;
+            using var titleBrush = new SolidBrush(ThemeManager.Accent);
             g.DrawString(_title, titleFont, titleBrush, new PointF(10, 6));
         }
 
@@ -56,53 +54,83 @@ public class SimpleBarChart : Control
             using var noDataBrush = new SolidBrush(ThemeManager.TextPrimary);
             g.DrawString(msg, Font, noDataBrush,
                 new PointF((Width - sz.Width) / 2, (Height - sz.Height) / 2));
+            titleFont.Dispose();
             return;
         }
 
-        // Layout - горизонтальные бары: слева лейбл, справа цветная полоса с числом в конце
-        int top = 8 + titleHeight;
-        int rowHeight = 26;
-        int rowSpacing = 4;
-        int labelWidth = 220;
-        int valueTextWidth = 80;
-        int chartLeft = 14 + labelWidth;
-        int chartRight = Width - 14 - valueTextWidth;
-        int chartWidth = Math.Max(50, chartRight - chartLeft);
+        int top = titleHeight + 8;
+        int bottom = 30;
+        int left = 14;
+        int right = 70;
+        int chartHeight = Height - top - bottom;
+        int chartWidth = Width - left - right;
+        int barGap = 2;
 
         double max = _items.Max(i => Math.Abs(i.Value));
         if (max <= 0) max = 1;
 
-        var defaultBarColor = Color.FromArgb(70, 130, 200);
+        int barWidth = Math.Max(8, (chartWidth - barGap * (_items.Count - 1)) / _items.Count);
+
+        var stepColors = new[]
+        {
+            Color.FromArgb(50, 80, 140),
+            Color.FromArgb(70, 110, 180),
+            Color.FromArgb(90, 140, 200),
+            Color.FromArgb(120, 160, 210),
+            Color.FromArgb(150, 130, 190),
+            Color.FromArgb(180, 110, 170),
+        };
 
         for (int i = 0; i < _items.Count; i++)
         {
             var item = _items[i];
-            int y = top + i * (rowHeight + rowSpacing);
-            if (y > Height) break;
+            int x = left + i * (barWidth + barGap);
+            int barH = (int)(chartHeight * (Math.Abs(item.Value) / max));
+            int y = top + chartHeight - barH;
 
-            // Label
-            var labelRect = new RectangleF(8, y, labelWidth, rowHeight);
-            using (var sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
-            using (var labelBrush = new SolidBrush(ThemeManager.TextPrimary))
+            var baseColor = item.Color ?? stepColors[i % stepColors.Length];
+
+            using var brush = new System.Drawing.Drawing2D.LinearGradientBrush(
+                new Rectangle(x, y, barWidth, barH),
+                ControlPaint.Light(baseColor, 0.3f),
+                baseColor,
+                System.Drawing.Drawing2D.LinearGradientMode.Vertical);
+            g.FillRectangle(brush, x, y, barWidth, barH);
+
+            using var borderPen = new Pen(ControlPaint.Dark(baseColor, 0.15f), 1);
+            g.DrawRectangle(borderPen, x, y, barWidth, barH);
+
+            if (i > 0)
             {
-                g.DrawString(item.Label, Font, labelBrush, labelRect, sf);
+                var prevItem = _items[i - 1];
+                int prevH = (int)(chartHeight * (Math.Abs(prevItem.Value) / max));
+                int prevY = top + chartHeight - prevH;
+                int prevX = left + (i - 1) * (barWidth + barGap) + barWidth;
+
+                using var stepPen = new Pen(baseColor, 2);
+                g.DrawLine(stepPen, prevX, prevY, x, prevY);
+                g.DrawLine(stepPen, x, prevY, x, y);
             }
 
-            // Bar
-            int barWidth = (int)(chartWidth * (Math.Abs(item.Value) / max));
-            var barRect = new Rectangle(chartLeft, y + 4, barWidth, rowHeight - 8);
-            using var brush = new SolidBrush(item.Color ?? defaultBarColor);
-            g.FillRectangle(brush, barRect);
+            using var valBrush = new SolidBrush(ThemeManager.TextPrimary);
+            var valText = item.Value.ToString("0.##");
+            var valSize = g.MeasureString(valText, Font);
+            g.DrawString(valText, Font, valBrush,
+                new PointF(x + (barWidth - valSize.Width) / 2, y - valSize.Height - 2));
 
-            // Value text
-            var valueText = item.Value.ToString("0.##");
-            var valRect = new RectangleF(chartLeft + barWidth + 6, y, valueTextWidth, rowHeight);
-            using (var sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center })
-            using (var valBrush = new SolidBrush(ThemeManager.TextPrimary))
+            using var lblBrush = new SolidBrush(ThemeManager.TextPrimary);
+            var lblRect = new RectangleF(x - 4, top + chartHeight + 4, barWidth + 8, bottom);
+            using var sf = new StringFormat
             {
-                g.DrawString(valueText, Font, valBrush, valRect, sf);
-            }
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Near,
+                Trimming = StringTrimming.EllipsisCharacter
+            };
+            g.DrawString(item.Label, Font, lblBrush, lblRect, sf);
         }
+
+        using var axisPen = new Pen(ControlPaint.Dark(ThemeManager.GridBackground, 0.2f), 1);
+        g.DrawLine(axisPen, left, top + chartHeight, left + chartWidth, top + chartHeight);
 
         titleFont.Dispose();
     }

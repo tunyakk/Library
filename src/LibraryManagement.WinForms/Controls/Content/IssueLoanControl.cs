@@ -23,9 +23,6 @@ public class IssueLoanControl : UserControl
     private readonly Button _btnSave = new() { Text = "Выдать", Width = 100, Height = 30 };
     private readonly Button _btnCancel = new() { Text = "Отмена", Width = 100, Height = 30 };
 
-    public event EventHandler? LoanIssued;
-    public event EventHandler? Cancelled;
-
     public IssueLoanControl(IServiceProvider services)
     {
         _services = services;
@@ -38,7 +35,7 @@ public class IssueLoanControl : UserControl
 
         BuildLayout();
         _btnSave.Click += async (_, _) => await IssueAsync();
-        _btnCancel.Click += (_, _) => Cancelled?.Invoke(this, EventArgs.Empty);
+        _btnCancel.Click += (_, _) => NavigationHelper.GoToDashboard(this);
 
         ThemeManager.ApplyDarkTheme(this);
     }
@@ -134,7 +131,7 @@ public class IssueLoanControl : UserControl
             var result = await _loanService.IssueAsync(request, userId);
             if (Ui.ReportResult(this, result, "Книга выдана."))
             {
-                LoanIssued?.Invoke(this, EventArgs.Empty);
+                NavigationHelper.GoToDashboard(this);
             }
         }
         finally

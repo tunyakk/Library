@@ -85,6 +85,15 @@ internal static class Program
         try
         {
             AppDbInitializer.InitializeAsync(provider).GetAwaiter().GetResult();
+
+            using var scope = provider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<Data.LibraryDbContext>();
+            var admin = db.Users.FirstOrDefault(u => u.Username == AppDbInitializer.DefaultAdminUsername);
+            if (admin != null)
+            {
+                var currentUser = provider.GetRequiredService<ICurrentUserService>() as CurrentUserService;
+                currentUser?.AutoSignInAsAdmin(admin.Id);
+            }
         }
         catch (Exception ex)
         {

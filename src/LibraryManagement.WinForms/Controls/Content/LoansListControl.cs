@@ -18,8 +18,8 @@ public class LoansListControl : UserControl
     private readonly CrudToolbar _toolbar = new();
     private readonly CheckBox _chkOnlyActive = new() { Text = "Только активные", AutoSize = true };
     private readonly CheckBox _chkOnlyOverdue = new() { Text = "Только просроченные", AutoSize = true };
-    private readonly Button _btnIssue = new() { Text = "Выдать книгу", Width = 130, Height = 28 };
-    private readonly Button _btnReturn = new() { Text = "Принять возврат", Width = 140, Height = 28 };
+    private readonly Button _btnIssue = new() { Text = "Выдать книгу", Width = 130, Height = 28, Tag = "NoTheme" };
+    private readonly Button _btnReturn = new() { Text = "Принять возврат", Width = 140, Height = 28, Tag = "NoTheme" };
 
     private readonly DataGridView _grid = new()
     {
@@ -59,11 +59,25 @@ public class LoansListControl : UserControl
         _chkOnlyOverdue.CheckedChanged += async (_, _) => { if (_chkOnlyOverdue.Checked) _chkOnlyActive.Checked = false; await ReloadAsync(); };
         _toolbar.RefreshClicked += async (_, _) => await ReloadAsync();
         _toolbar.SearchTextChanged += async (_, _) => await ReloadAsync();
+        _toolbar.BackClicked += (_, _) => NavigationHelper.GoToDashboard(this);
         _grid.CellDoubleClick += async (_, e) => { if (e.RowIndex >= 0) await ShowReturnForSelectedAsync(); };
 
         _toolbar.AddButton.Visible = false;
         _toolbar.EditButton.Visible = false;
         _toolbar.DeleteButton.Visible = false;
+
+        _btnIssue.FlatStyle = FlatStyle.Flat;
+        _btnIssue.BackColor = ThemeManager.Accent;
+        _btnIssue.ForeColor = ThemeManager.TextHeader;
+        _btnIssue.FlatAppearance.BorderColor = ThemeManager.Accent;
+        _btnIssue.FlatAppearance.MouseOverBackColor = ThemeManager.AccentLight;
+
+        _btnReturn.FlatStyle = FlatStyle.Flat;
+        _btnReturn.BackColor = ThemeManager.Accent;
+        _btnReturn.ForeColor = ThemeManager.TextHeader;
+        _btnReturn.FlatAppearance.BorderColor = ThemeManager.Accent;
+        _btnReturn.FlatAppearance.MouseOverBackColor = ThemeManager.AccentLight;
+
         _toolbar.ExtraButtonsPanel.Controls.AddRange(new Control[] { _btnIssue, _btnReturn, _chkOnlyActive, _chkOnlyOverdue });
 
         Controls.Add(_grid);
@@ -105,8 +119,6 @@ public class LoansListControl : UserControl
     {
         var contentPanel = FindForm()?.Controls.OfType<ContentPanel>().FirstOrDefault();
         var control = new IssueLoanControl(_services) { Dock = DockStyle.Fill };
-        control.LoanIssued += async (_, _) => { NavigateBack(contentPanel); };
-        control.Cancelled += (_, _) => NavigateBack(contentPanel);
         contentPanel?.ShowContent(control);
         await control.LoadDataAsync();
     }
@@ -119,8 +131,6 @@ public class LoansListControl : UserControl
         var contentPanel = FindForm()?.Controls.OfType<ContentPanel>().FirstOrDefault();
         var control = new ReturnLoanControl(_services) { Dock = DockStyle.Fill };
         control.LoadLoan(current);
-        control.LoanReturned += async (_, _) => { NavigateBack(contentPanel); };
-        control.Cancelled += (_, _) => NavigateBack(contentPanel);
         contentPanel?.ShowContent(control);
     }
 

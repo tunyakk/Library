@@ -18,5 +18,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.IsActive).IsRequired();
 
         builder.HasIndex(u => u.Username).IsUnique();
+
+        builder.HasOne(u => u.Employee)
+            .WithMany()
+            .HasForeignKey(u => u.EmployeeId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

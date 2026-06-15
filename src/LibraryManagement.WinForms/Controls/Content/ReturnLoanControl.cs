@@ -19,9 +19,6 @@ public class ReturnLoanControl : UserControl
 
     private LoanDto? _loan;
 
-    public event EventHandler? LoanReturned;
-    public event EventHandler? Cancelled;
-
     public ReturnLoanControl(IServiceProvider services)
     {
         _services = services;
@@ -31,7 +28,7 @@ public class ReturnLoanControl : UserControl
 
         BuildLayout();
         _btnSave.Click += async (_, _) => await ReturnAsync();
-        _btnCancel.Click += (_, _) => Cancelled?.Invoke(this, EventArgs.Empty);
+        _btnCancel.Click += (_, _) => NavigationHelper.GoToDashboard(this);
 
         ThemeManager.ApplyDarkTheme(this);
     }
@@ -92,7 +89,7 @@ public class ReturnLoanControl : UserControl
             var result = await _loanService.ReturnAsync(_loan.Id, _numFine.Value, notes);
             if (Ui.ReportResult(this, result, "Книга возвращена."))
             {
-                LoanReturned?.Invoke(this, EventArgs.Empty);
+                NavigationHelper.GoToDashboard(this);
             }
         }
         finally

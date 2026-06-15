@@ -48,6 +48,7 @@ public class ReadersListControl : UserControl
         _toolbar.DeleteClicked += async (_, _) => await DeleteSelectedAsync();
         _toolbar.RefreshClicked += async (_, _) => await ReloadAsync();
         _toolbar.SearchTextChanged += async (_, _) => await ReloadAsync();
+        _toolbar.BackClicked += (_, _) => NavigationHelper.GoToDashboard(this);
         _grid.CellDoubleClick += async (_, e) => { if (e.RowIndex >= 0) await EditSelectedAsync(); };
 
         Controls.Add(_grid);

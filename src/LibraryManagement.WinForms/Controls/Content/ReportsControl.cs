@@ -1,6 +1,7 @@
 using LibraryManagement.Application.Dtos;
 using LibraryManagement.Application.Services;
 using LibraryManagement.WinForms.Controls;
+using LibraryManagement.WinForms.Forms;
 using LibraryManagement.WinForms.Helpers;
 using LibraryManagement.WinForms.Theme;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,28 +13,8 @@ public class ReportsControl : UserControl
     private readonly IServiceProvider _services;
     private readonly IReportService _reportService;
 
-    private readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
-    private readonly Button _btnRefresh = new() { Text = "Обновить отчёты", Width = 160, Height = 30 };
-
-    private readonly Label _lblStats = new()
-    {
-        Dock = DockStyle.Top,
-        TextAlign = ContentAlignment.TopLeft,
-        Padding = new Padding(20),
-        Font = new Font("Segoe UI", 11F),
-        AutoSize = false,
-        Height = 200
-    };
-    private readonly SimplePieChart _pieAvailability = new() { Dock = DockStyle.Fill, Title = "Распределение экземпляров" };
-
-    private readonly DataGridView _gridPopular = NewGrid();
-    private readonly SimpleBarChart _chartPopular = new() { Dock = DockStyle.Top, Height = 280, Title = "Топ-10 популярных книг (по количеству выдач)" };
-
-    private readonly DataGridView _gridReaders = NewGrid();
-    private readonly SimpleBarChart _chartReaders = new() { Dock = DockStyle.Top, Height = 280, Title = "Топ-10 активных читателей (по количеству выдач)" };
-
     private readonly DataGridView _gridOverdue = NewGrid();
-    private readonly SimpleBarChart _chartOverdue = new() { Dock = DockStyle.Top, Height = 280, Title = "Просроченные выдачи (по дням просрочки)" };
+    private readonly SimpleBarChart _chartOverdue = new() { Dock = DockStyle.Top, Height = 300, Title = "Просроченные выдачи (дни просрочки)" };
 
     public ReportsControl(IServiceProvider services)
     {
@@ -42,15 +23,58 @@ public class ReportsControl : UserControl
 
         Dock = DockStyle.Fill;
 
-        BuildGridColumns();
-        BuildTabs();
+        _gridOverdue.Columns.AddRange(
+            new DataGridViewTextBoxColumn { HeaderText = "Книга", DataPropertyName = nameof(LoanDto.BookTitle), FillWeight = 80 },
+            new DataGridViewTextBoxColumn { HeaderText = "Читатель", DataPropertyName = nameof(LoanDto.ReaderFullName), FillWeight = 70 },
+            new DataGridViewTextBoxColumn { HeaderText = "Билет", DataPropertyName = nameof(LoanDto.ReaderCardNumber), FillWeight = 35 },
+            new DataGridViewTextBoxColumn { HeaderText = "Срок был", DataPropertyName = nameof(LoanDto.DueDate), DefaultCellStyle = { Format = "dd.MM.yyyy" }, FillWeight = 40 },
+            new DataGridViewTextBoxColumn { HeaderText = "Дней просрочки", DataPropertyName = nameof(LoanDto.OverdueDays), FillWeight = 30 },
+            new DataGridViewTextBoxColumn { HeaderText = "Штраф", DataPropertyName = nameof(LoanDto.FineAmount), DefaultCellStyle = { Format = "0.00 ₽" }, FillWeight = 30 }
+        );
 
         var topPanel = new Panel { Dock = DockStyle.Top, Height = 44, Padding = new Padding(8) };
-        _btnRefresh.Click += async (_, _) => await ReloadAllAsync();
-        _btnRefresh.Dock = DockStyle.Left;
-        topPanel.Controls.Add(_btnRefresh);
+        var btnBack = new Button
+        {
+            Text = "← Назад",
+            Width = 90,
+            Height = 28,
+            Dock = DockStyle.Left,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = ThemeManager.Accent,
+            ForeColor = ThemeManager.TextHeader,
+            Tag = "NoTheme"
+        };
+        btnBack.FlatAppearance.BorderColor = ThemeManager.Accent;
+        btnBack.FlatAppearance.MouseOverBackColor = ThemeManager.AccentLight;
+        btnBack.Click += (_, _) => NavigationHelper.GoToDashboard(this);
 
-        Controls.Add(_tabs);
+        var btnLoansList = new Button
+        {
+            Text = "К списку выдач",
+            Width = 140,
+            Height = 28,
+            Dock = DockStyle.Left,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = ThemeManager.Accent,
+            ForeColor = ThemeManager.TextHeader,
+            Tag = "NoTheme"
+        };
+        btnLoansList.FlatAppearance.BorderColor = ThemeManager.Accent;
+        btnLoansList.FlatAppearance.MouseOverBackColor = ThemeManager.AccentLight;
+        btnLoansList.Click += (_, _) =>
+        {
+            var mainForm = FindForm();
+            if (mainForm is MainForm mf) mf.NavigateTo("loans_list");
+        };
+
+        topPanel.Controls.Add(btnLoansList);
+        topPanel.Controls.Add(btnBack);
+
+        var contentPanel = new Panel { Dock = DockStyle.Fill };
+        contentPanel.Controls.Add(_gridOverdue);
+        contentPanel.Controls.Add(_chartOverdue);
+
+        Controls.Add(contentPanel);
         Controls.Add(topPanel);
 
         ThemeManager.ApplyDarkTheme(this);
@@ -58,7 +82,27 @@ public class ReportsControl : UserControl
 
     public async Task LoadDataAsync()
     {
-        await ReloadAllAsync();
+        try
+        {
+            var overdueLoans = await _reportService.GetOverdueLoansAsync();
+            _gridOverdue.DataSource = overdueLoans.ToList();
+            foreach (DataGridViewRow row in _gridOverdue.Rows)
+            {
+                row.DefaultCellStyle.ForeColor = Color.DarkRed;
+            }
+
+            var overdueColors = new[]
+            {
+                Color.FromArgb(200, 80, 80), Color.FromArgb(180, 60, 60), Color.FromArgb(160, 50, 50),
+                Color.FromArgb(200, 80, 80), Color.FromArgb(180, 60, 60), Color.FromArgb(160, 50, 50)
+            };
+            _chartOverdue.SetData(overdueLoans.Select((l, idx) => new SimpleBarChart.BarItem(
+                l.ReaderFullName, l.OverdueDays, overdueColors[idx % overdueColors.Length])));
+        }
+        catch (Exception ex)
+        {
+            Ui.ShowError(this, "Не удалось загрузить отчёт: " + ex.Message);
+        }
     }
 
     private static DataGridView NewGrid() => new()
@@ -71,105 +115,7 @@ public class ReportsControl : UserControl
         SelectionMode = DataGridViewSelectionMode.FullRowSelect,
         MultiSelect = false,
         RowHeadersVisible = false,
-        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells,
-        BackgroundColor = Color.White
+        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+        BackgroundColor = ThemeManager.GridBackground
     };
-
-    private void BuildGridColumns()
-    {
-        _gridPopular.Columns.AddRange(
-            new DataGridViewTextBoxColumn { HeaderText = "Книга", DataPropertyName = nameof(PopularBookRow.Title) },
-            new DataGridViewTextBoxColumn { HeaderText = "Автор", DataPropertyName = nameof(PopularBookRow.AuthorFullName) },
-            new DataGridViewTextBoxColumn { HeaderText = "Выдач", DataPropertyName = nameof(PopularBookRow.LoanCount) }
-        );
-
-        _gridReaders.Columns.AddRange(
-            new DataGridViewTextBoxColumn { HeaderText = "Билет", DataPropertyName = nameof(ActiveReaderRow.CardNumber) },
-            new DataGridViewTextBoxColumn { HeaderText = "ФИО", DataPropertyName = nameof(ActiveReaderRow.FullName) },
-            new DataGridViewTextBoxColumn { HeaderText = "Выдач", DataPropertyName = nameof(ActiveReaderRow.LoanCount) }
-        );
-
-        _gridOverdue.Columns.AddRange(
-            new DataGridViewTextBoxColumn { HeaderText = "Книга", DataPropertyName = nameof(LoanDto.BookTitle) },
-            new DataGridViewTextBoxColumn { HeaderText = "Читатель", DataPropertyName = nameof(LoanDto.ReaderFullName) },
-            new DataGridViewTextBoxColumn { HeaderText = "Билет", DataPropertyName = nameof(LoanDto.ReaderCardNumber) },
-            new DataGridViewTextBoxColumn { HeaderText = "Срок был", DataPropertyName = nameof(LoanDto.DueDate), DefaultCellStyle = { Format = "dd.MM.yyyy" } },
-            new DataGridViewTextBoxColumn { HeaderText = "Дней просрочки", DataPropertyName = nameof(LoanDto.OverdueDays) },
-            new DataGridViewTextBoxColumn { HeaderText = "Штраф", DataPropertyName = nameof(LoanDto.FineAmount), DefaultCellStyle = { Format = "0.00 ₽" } }
-        );
-    }
-
-    private void BuildTabs()
-    {
-        var tabStats = new TabPage("Сводка");
-        var statsContainer = new Panel { Dock = DockStyle.Fill };
-        statsContainer.Controls.Add(_pieAvailability);
-        statsContainer.Controls.Add(_lblStats);
-        tabStats.Controls.Add(statsContainer);
-
-        var tabPopular = new TabPage("Популярные книги");
-        var popularContainer = new Panel { Dock = DockStyle.Fill };
-        popularContainer.Controls.Add(_gridPopular);
-        popularContainer.Controls.Add(_chartPopular);
-        tabPopular.Controls.Add(popularContainer);
-
-        var tabReaders = new TabPage("Активные читатели");
-        var readersContainer = new Panel { Dock = DockStyle.Fill };
-        readersContainer.Controls.Add(_gridReaders);
-        readersContainer.Controls.Add(_chartReaders);
-        tabReaders.Controls.Add(readersContainer);
-
-        var tabOverdue = new TabPage("Просроченные выдачи");
-        var overdueContainer = new Panel { Dock = DockStyle.Fill };
-        overdueContainer.Controls.Add(_gridOverdue);
-        overdueContainer.Controls.Add(_chartOverdue);
-        tabOverdue.Controls.Add(overdueContainer);
-
-        _tabs.TabPages.AddRange(new[] { tabStats, tabPopular, tabReaders, tabOverdue });
-    }
-
-    private async Task ReloadAllAsync()
-    {
-        try
-        {
-            var stats = await _reportService.GetStatsAsync();
-            _lblStats.Text =
-                $"Всего наименований книг: {stats.TotalBooks}\n" +
-                $"Всего экземпляров: {stats.TotalCopies}\n" +
-                $"Доступно к выдаче: {stats.AvailableCopies}\n\n" +
-                $"Зарегистрированных читателей: {stats.TotalReaders}\n" +
-                $"Активных выдач: {stats.ActiveLoans}\n" +
-                $"Просроченных выдач: {stats.OverdueLoans}";
-
-            var inHands = Math.Max(0, stats.TotalCopies - stats.AvailableCopies);
-            _pieAvailability.SetData(new[]
-            {
-                new SimplePieChart.PieSlice("Доступно", stats.AvailableCopies, Color.FromArgb(80, 170, 110)),
-                new SimplePieChart.PieSlice("На руках", inHands, Color.FromArgb(220, 130, 60)),
-            });
-
-            var popular = await _reportService.GetPopularBooksAsync();
-            _gridPopular.DataSource = popular.ToList();
-            _chartPopular.SetData(popular.Select(p => new SimpleBarChart.BarItem(
-                $"{p.Title} ({p.AuthorFullName})", p.LoanCount, Color.FromArgb(70, 130, 200))));
-
-            var readers = await _reportService.GetActiveReadersAsync();
-            _gridReaders.DataSource = readers.ToList();
-            _chartReaders.SetData(readers.Select(r => new SimpleBarChart.BarItem(
-                $"{r.FullName} (билет {r.CardNumber})", r.LoanCount, Color.FromArgb(120, 100, 200))));
-
-            var overdueLoans = await _reportService.GetOverdueLoansAsync();
-            _gridOverdue.DataSource = overdueLoans.ToList();
-            foreach (DataGridViewRow row in _gridOverdue.Rows)
-            {
-                row.DefaultCellStyle.ForeColor = Color.DarkRed;
-            }
-            _chartOverdue.SetData(overdueLoans.Select(l => new SimpleBarChart.BarItem(
-                $"{l.ReaderFullName} → «{l.BookTitle}»", l.OverdueDays, Color.FromArgb(200, 80, 80))));
-        }
-        catch (Exception ex)
-        {
-            Ui.ShowError(this, "Не удалось обновить отчёты: " + ex.Message);
-        }
-    }
 }

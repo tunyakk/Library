@@ -25,4 +25,14 @@ public class ContentPanel : UserControl
         Controls.Add(content);
         content.BringToFront();
     }
+
+    public void ClearContent()
+    {
+        if (_currentContent != null)
+        {
+            Controls.Remove(_currentContent);
+            _currentContent.Dispose();
+            _currentContent = null;
+        }
+    }
 }

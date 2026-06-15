@@ -14,6 +14,8 @@ public interface ILibraryDbContext
     DbSet<Reader> Readers { get; }
     DbSet<Loan> Loans { get; }
     DbSet<User> Users { get; }
+    DbSet<Position> Positions { get; }
+    DbSet<Employee> Employees { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

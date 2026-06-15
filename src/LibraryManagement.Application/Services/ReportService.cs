@@ -112,4 +112,68 @@ public class ReportService : IReportService
             })
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<MonthlyLoanRow>> GetMonthlyLoansAsync(int months = 12, CancellationToken cancellationToken = default)
+    {
+        var allLoans = await _db.Loans
+            .AsNoTracking()
+            .Select(l => new { l.LoanDate.Year, l.LoanDate.Month })
+            .ToListAsync(cancellationToken);
+
+        var grouped = allLoans
+            .GroupBy(x => new { x.Year, x.Month })
+            .ToDictionary(g => (g.Key.Year, g.Key.Month), g => g.Count());
+
+        var result = new List<MonthlyLoanRow>();
+        var now = DateTime.Now;
+        for (int i = months - 1; i >= 0; i--)
+        {
+            var d = now.AddMonths(-i);
+            grouped.TryGetValue((d.Year, d.Month), out var count);
+            result.Add(new MonthlyLoanRow { Year = d.Year, Month = d.Month, LoanCount = count });
+        }
+        return result;
+    }
+
+    public async Task<IReadOnlyList<GenreDistributionRow>> GetGenreDistributionAsync(CancellationToken cancellationToken = default)
+    {
+        return await _db.Books
+            .AsNoTracking()
+            .Include(b => b.Genre)
+            .GroupBy(b => new { GenreId = b.GenreId, GenreName = b.Genre.Name })
+            .Select(g => new GenreDistributionRow
+            {
+                GenreName = g.Key.GenreName,
+                TotalCopies = g.Sum(b => b.TotalCopies),
+                AvailableCopies = g.Sum(b => b.AvailableCopies)
+            })
+            .OrderByDescending(r => r.TotalCopies)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<FineReportRow>> GetFineReportAsync(CancellationToken cancellationToken = default)
+    {
+        var todayDate = DateTime.UtcNow.Date;
+        var overdueLoans = await _db.Loans
+            .AsNoTracking()
+            .Include(l => l.Reader)
+            .Where(l => l.ReturnedAt == null && l.DueDate.Date < todayDate)
+            .ToListAsync(cancellationToken);
+
+        return overdueLoans
+            .GroupBy(l => new { l.ReaderId, l.Reader!.CardNumber, l.Reader.FirstName, l.Reader.LastName, l.Reader.MiddleName })
+            .Select(g => new FineReportRow
+            {
+                ReaderId = g.Key.ReaderId,
+                CardNumber = g.Key.CardNumber,
+                FullName = (g.Key.MiddleName == null || g.Key.MiddleName == "")
+                    ? g.Key.LastName + " " + g.Key.FirstName
+                    : g.Key.LastName + " " + g.Key.FirstName + " " + g.Key.MiddleName,
+                OverdueLoansCount = g.Count(),
+                TotalFines = g.Sum(l => l.FineAmount ?? 0m),
+                MaxOverdueDays = g.Max(l => (int)(todayDate - l.DueDate.Date).TotalDays)
+            })
+            .OrderByDescending(r => r.TotalFines)
+            .ToList();
+    }
 }

@@ -13,6 +13,8 @@ public class User : Entity
     public UserRole Role { get; set; } = UserRole.Librarian;
     public bool IsActive { get; set; } = true;
     public DateTime? LastLoginAt { get; set; }
+    public int? EmployeeId { get; set; }
 
+    public Employee? Employee { get; set; }
     public ICollection<Loan> IssuedLoans { get; set; } = new List<Loan>();
 }
